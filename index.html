@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SYLEAD Youth Research Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.globe.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary: #4f46e5;
+            --secondary: #10b981;
+            --accent: #f59e0b;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        
+        .vanta-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(79, 70, 229, 0.2);
+            box-shadow: 0 8px 32px rgba(2, 6, 23, 0.5);
+            transition: all 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            border: 1px solid rgba(79, 70, 229, 0.4);
+            box-shadow: 0 12px 40px rgba(79, 70, 229, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, var(--primary), var(--secondary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .floating-element {
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+        }
+        
+        .stats-card {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stats-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.3), transparent);
+            transition: left 0.5s;
+        }
+        
+        .stats-card:hover::before {
+            left: 100%;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(79, 70, 229, 0.4);
+        }
+        
+        .filter-btn {
+            transition: all 0.3s ease;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(79, 70, 229, 0.3);
+        }
+        
+        .filter-btn:hover, .filter-btn.active {
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.2), rgba(99, 102, 241, 0.3));
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(79, 70, 229, 0.3);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .data-table th {
+            background: rgba(55, 48, 163, 0.3);
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(79, 70, 229, 0.3);
+        }
+        
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(79, 70, 229, 0.1);
+        }
+        
+        .data-table tr:hover {
+            background: rgba(79, 70, 229, 0.1);
+        }
+        
+        .pagination-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .pagination-btn:hover {
+            background: rgba(79, 70, 229, 0.2);
+        }
+        
+        .pagination-btn.active {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+        
+        .progress-glow {
+            box-shadow: 0 0 20px rgba(79, 70, 229, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Vanta.js Background -->
+    <div id="vanta-bg" class="vanta-bg"></div>
+
+    <!-- Floating Background Elements -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute top-20 left-10 w-32 h-32 rounded-full bg-indigo-500 opacity-10 floating-element" style="animation-delay: 0s;"></div>
+        <div class="absolute top-1/3 right-20 w-40 h-40 rounded-full bg-emerald-500 opacity-10 floating-element" style="animation-delay: 2s;"></div>
+        <div class="absolute bottom-1/4 left-1/4 w-36 h-36 rounded-full bg-amber-500 opacity-10 floating-element" style="animation-delay: 4s;"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="relative py-8" data-aos="fade-down">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center">
+                    <img src="https://sylead-surveys.netlify.app/logo.png" alt="SYLEAD Logo" class="h-12 md:h-16 mr-4">
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold gradient-text">SYLEAD YOUTH </h1>
+                    </div>
+                </div>
+                <div class="glass-card px-4 py-2 rounded-lg">
+                    <span class="text-sm text-gray-300">Total: </span>
+                    <span id="total-responses" class="text-indigo-400 font-bold">0</span>
+                </div>
+            </div>
+            
+            <!-- Filters -->
+            <div class="glass-card rounded-xl p-6 mb-6" data-aos="fade-up">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <i data-feather="filter" class="w-6 h-6 text-indigo-400 mr-2"></i>
+                    Filter Data
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-2">Gender</label>
+                        <select id="gender-filter" class="filter-btn w-full px-4 py-2 rounded-lg text-white">
+                            <option value="all">All Genders</option>
+                            <option value="Lab">Male</option>
+                            <option value="Dhedig">Female</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-2">Age Range</label>
+                        <select id="age-filter" class="filter-btn w-full px-4 py-2 rounded-lg text-white">
+                            <option value="all">All Ages</option>
+                            <option value="15-17">15-17 years</option>
+                            <option value="18-20">18-20 years</option>
+                            <option value="21-23">21-23 years</option>
+                            <option value="24+">24+ years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-2">Grade</label>
+                        <select id="grade-filter" class="filter-btn w-full px-4 py-2 rounded-lg text-white">
+                            <option value="all">All Grades</option>
+                            <option value="Form 3">Form 3</option>
+                            <option value="Form 4">Form 4</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-2">Migration Intent</label>
+                        <select id="migration-filter" class="filter-btn w-full px-4 py-2 rounded-lg text-white">
+                            <option value="all">All Responses</option>
+                            <option value="Haa">Considering Migration</option>
+                            <option value="Maya">Not Considering</option>
+                            <option value="Mararka qaar">Sometimes Considering</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button id="apply-filters" class="bg-gradient-to-r from-indigo-500 to-emerald-500 text-white px-6 py-2 rounded-lg font-medium flex items-center">
+                        <i data-feather="filter" class="w-4 h-4 mr-2"></i>
+                        Apply Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main class="container mx-auto px-4 pb-12">
+        <!-- Key Metrics -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="stats-card glass-card rounded-xl p-6 text-center" data-aos="fade-up">
+                <div class="inline-block p-3 bg-indigo-500/20 rounded-full mb-4">
+                    <i data-feather="users" class="w-8 h-8 text-indigo-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-2">Total Respondents</h3>
+                <p id="metric-total" class="text-3xl font-bold gradient-text">0</p>
+            </div>
+            
+            <div class="stats-card glass-card rounded-xl p-6 text-center" data-aos="fade-up" data-aos-delay="100">
+                <div class="inline-block p-3 bg-emerald-500/20 rounded-full mb-4">
+                    <i data-feather="briefcase" class="w-8 h-8 text-emerald-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-2">Believe in Job Opportunities</h3>
+                <p id="metric-job-opportunities" class="text-3xl font-bold gradient-text">0%</p>
+            </div>
+            
+            <div class="stats-card glass-card rounded-xl p-6 text-center" data-aos="fade-up" data-aos-delay="200">
+                <div class="inline-block p-3 bg-amber-500/20 rounded-full mb-4">
+                    <i data-feather="globe" class="w-8 h-8 text-amber-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-2">Considering Migration</h3>
+                <p id="metric-migration" class="text-3xl font-bold gradient-text">0%</p>
+            </div>
+            
+            <div class="stats-card glass-card rounded-xl p-6 text-center" data-aos="fade-up" data-aos-delay="300">
+                <div class="inline-block p-3 bg-purple-500/20 rounded-full mb-4">
+                    <i data-feather="trending-up" class="w-8 h-8 text-purple-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-2">Interested in Training</h3>
+                <p id="metric-training" class="text-3xl font-bold gradient-text">0%</p>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Gender Distribution -->
+            <div class="glass-card rounded-xl p-6" data-aos="fade-up">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <i data-feather="user" class="w-6 h-6 text-indigo-400 mr-2"></i>
+                    Gender Distribution
+                </h2>
+                <div class="chart-container">
+                    <canvas id="gender-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- After School Plans -->
+            <div class="glass-card rounded-xl p-6" data-aos="fade-up" data-aos-delay="100">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <i data-feather="target" class="w-6 h-6 text-emerald-400 mr-2"></i>
+                    After School Plans
+                </h2>
+                <div class="chart-container">
+                    <canvas id="plans-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Job Opportunities Belief -->
+            <div class="glass-card rounded-xl p-6" data-aos="fade-up" data-aos-delay="200">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <i data-feather="briefcase" class="w-6 h-6 text-amber-400 mr-2"></i>
+                    Job Opportunities Belief
+                </h2>
+                <div class="chart-container">
+                    <canvas id="opportunity-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Migration Consideration -->
+            <div class="glass-card rounded-xl p-6" data-aos="fade-up" data-aos-delay="300">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <i data-feather="globe" class="w-6 h-6 text-purple-400 mr-2"></i>
+                    Migration Consideration
+                </h2>
+                <div class="chart-container">
+                    <canvas id="migration-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Skills Training Interest -->
+            <div class="glass-card rounded-xl p-6" data-aos="fade-up" data-aos-delay="400">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <i data-feather="book" class="w-6 h-6 text-blue-400 mr-2"></i>
+                    Skills Training Interest
+                </h2>
+                <div class="chart-container">
+                    <canvas id="training-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Unemployment Reasons -->
+            <div class="glass-card rounded-xl p-6" data-aos="fade-up" data-aos-delay="500">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <i data-feather="alert-circle" class="w-6 h-6 text-red-400 mr-2"></i>
+                    Unemployment Reasons
+                </h2>
+                <div class="chart-container">
+                    <canvas id="unemployment-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="glass-card rounded-xl p-6 mb-8" data-aos="fade-up">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-white flex items-center">
+                    <i data-feather="database" class="w-6 h-6 text-indigo-400 mr-2"></i>
+                    Response Data
+                </h2>
+                <div class="flex items-center">
+                    <span class="text-sm text-gray-300 mr-3">Show</span>
+                    <select id="rows-per-page" class="filter-btn px-3 py-1 rounded-lg text-white">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                    <span class="text-sm text-gray-300 ml-3">entries</span>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="data-table w-full rounded-lg overflow-hidden">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Gender</th>
+                            <th>Age</th>
+                            <th>Grade</th>
+                            <th>Neighborhood</th>
+                            <th>Migration Considered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body">
+                        <!-- Data will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="flex justify-between items-center mt-6">
+                <div class="text-sm text-gray-300" id="table-info">
+                    Showing 0 to 0 of 0 entries
+                </div>
+                <div class="flex space-x-2" id="pagination">
+                    <!-- Pagination will be generated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Section -->
+        <div class="glass-card rounded-xl p-6 text-center" data-aos="fade-up">
+            <h2 class="text-xl font-bold text-white mb-4">Export Data</h2>
+            <p class="text-gray-300 mb-6">Download the complete dataset for further analysis</p>
+            <div class="flex justify-center space-x-4">
+                <button id="export-csv" class="bg-gradient-to-r from-indigo-500 to-emerald-500 text-white px-6 py-3 rounded-lg font-medium flex items-center">
+                    <i data-feather="download" class="w-5 h-5 mr-2"></i>
+                    Export CSV
+                </button>
+                <button id="export-json" class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-3 rounded-lg font-medium flex items-center">
+                    <i data-feather="download" class="w-5 h-5 mr-2"></i>
+                    Export JSON
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Response Detail Modal -->
+    <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="glass-card rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-white">Response Details</h3>
+                <button onclick="closeDetailModal()" class="text-gray-400 hover:text-white">
+                    <i data-feather="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div id="modal-content" class="space-y-4">
+                <!-- Content will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBUc5hcM-aDwF3YqLkMrlGQ39aUKesAPwI",
+            authDomain: "sylead-surveys.firebaseapp.com",
+            projectId: "sylead-surveys",
+            storageBucket: "sylead-surveys.appspot.com",
+            messagingSenderId: "1022858819367",
+            appId: "1:1022858819367:web:819cc345a439ccb691db02",
+            measurementId: "G-E9E04BWX5Y"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Initialize AOS
+        AOS.init({
+            duration: 800,
+            once: true
+        });
+
+        // Initialize Feather Icons
+        feather.replace();
+
+        // Initialize Vanta.js
+        VANTA.GLOBE({
+            el: "#vanta-bg",
+            mouseControls: true,
+            touchControls: true,
+            gyroControls: false,
+            minHeight: 200.00,
+            minWidth: 200.00,
+            scale: 1.00,
+            scaleMobile: 1.00,
+            color: 0x4f46e5,
+            backgroundColor: 0x0f172a,
+            size: 0.8
+        });
+
+        // Global variables
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let rowsPerPage = 10;
+        let currentFilters = {
+            gender: 'all',
+            age: 'all',
+            grade: 'all',
+            migration: 'all'
+        };
+
+        // Chart instances
+        const charts = {
+            gender: null,
+            plans: null,
+            opportunity: null,
+            migration: null,
+            training: null,
+            unemployment: null
+        };
+
+        // Fetch data from Firestore
+        async function fetchData() {
+            try {
+                const snapshot = await db.collection('secondary_student_surveys').get();
+                allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                filteredData = [...allData];
+                
+                updateMetrics();
+                renderCharts();
+                renderTable();
+                setupEventListeners();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Update metrics
+        function updateMetrics() {
+            document.getElementById('total-responses').textContent = allData.length;
+            document.getElementById('metric-total').textContent = allData.length;
+            
+            // Job opportunities belief
+            const believeInJobs = allData.filter(item => item.job_opportunities === 'Haa').length;
+            const jobOpportunityRate = allData.length ? Math.round((believeInJobs / allData.length) * 100) : 0;
+            document.getElementById('metric-job-opportunities').textContent = `${jobOpportunityRate}%`;
+            
+            // Migration consideration
+            const consideringMigration = allData.filter(item => item.considered_migration === 'Haa').length;
+            const migrationRate = allData.length ? Math.round((consideringMigration / allData.length) * 100) : 0;
+            document.getElementById('metric-migration').textContent = `${migrationRate}%`;
+            
+            // Training interest
+            const interestedInTraining = allData.filter(item => item.interested_training === 'Haa').length;
+            const trainingRate = allData.length ? Math.round((interestedInTraining / allData.length) * 100) : 0;
+            document.getElementById('metric-training').textContent = `${trainingRate}%`;
+        }
+
+        // Render charts
+        function renderCharts() {
+            renderGenderChart();
+            renderPlansChart();
+            renderOpportunityChart();
+            renderMigrationChart();
+            renderTrainingChart();
+            renderUnemploymentChart();
+        }
+
+        function renderGenderChart() {
+            const ctx = document.getElementById('gender-chart').getContext('2d');
+            const maleCount = filteredData.filter(item => item.gender === 'Lab').length;
+            const femaleCount = filteredData.filter(item => item.gender === 'Dhedig').length;
+            
+            if (charts.gender) charts.gender.destroy();
+            
+            charts.gender = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Male', 'Female'],
+                    datasets: [{
+                        data: [maleCount, femaleCount],
+                        backgroundColor: ['#4f46e5', '#ec4899'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#e2e8f0',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderPlansChart() {
+            const ctx = document.getElementById('plans-chart').getContext('2d');
+            const plans = [
+                'Inaad jaamacad gasho',
+                'Inaad shaqo raadsato',
+                'Inaad xirfad barato',
+                'Inaad safar ama tahriib sameyso'
+            ];
+            
+            const planData = plans.map(plan => 
+                filteredData.filter(item => item.after_school === plan).length
+            );
+            
+            if (charts.plans) charts.plans.destroy();
+            
+            charts.plans = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: plans.map(p => p.split(' ')[0]),
+                    datasets: [{
+                        data: planData,
+                        backgroundColor: ['#4f46e5', '#10b981', '#f59e0b', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#e2e8f0'
+                            },
+                            grid: {
+                                color: 'rgba(79, 70, 229, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#e2e8f0'
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderOpportunityChart() {
+            const ctx = document.getElementById('opportunity-chart').getContext('2d');
+            const yes = filteredData.filter(item => item.job_opportunities === 'Haa').length;
+            const no = filteredData.filter(item => item.job_opportunities === 'Maya').length;
+            const notSure = filteredData.filter(item => item.job_opportunities === 'Ma hubo').length;
+            
+            if (charts.opportunity) charts.opportunity.destroy();
+            
+            charts.opportunity = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Yes', 'No', 'Not Sure'],
+                    datasets: [{
+                        data: [yes, no, notSure],
+                        backgroundColor: ['#4f46e5', '#ef4444', '#6b7280'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#e2e8f0',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderMigrationChart() {
+            const ctx = document.getElementById('migration-chart').getContext('2d');
+            const yes = filteredData.filter(item => item.considered_migration === 'Haa').length;
+            const no = filteredData.filter(item => item.considered_migration === 'Maya').length;
+            const sometimes = filteredData.filter(item => item.considered_migration === 'Mararka qaar').length;
+            
+            if (charts.migration) charts.migration.destroy();
+            
+            charts.migration = new Chart(ctx, {
+                type: 'polarArea',
+                data: {
+                    labels: ['Yes', 'No', 'Sometimes'],
+                    datasets: [{
+                        data: [yes, no, sometimes],
+                        backgroundColor: ['#4f46e5', '#10b981', '#f59e0b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#e2e8f0',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTrainingChart() {
+            const ctx = document.getElementById('training-chart').getContext('2d');
+            const yes = filteredData.filter(item => item.interested_training === 'Haa').length;
+            const no = filteredData.filter(item => item.interested_training === 'Maya').length;
+            const notSure = filteredData.filter(item => item.interested_training === 'Ma hubo').length;
+            
+            if (charts.training) charts.training.destroy();
+            
+            charts.training = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Yes', 'No', 'Not Sure'],
+                    datasets: [{
+                        data: [yes, no, notSure],
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                        borderColor: '#4f46e5',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#4f46e5',
+                        pointBorderColor: '#fff',
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#e2e8f0'
+                            },
+                            grid: {
+                                color: 'rgba(79, 70, 229, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#e2e8f0'
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderUnemploymentChart() {
+            const ctx = document.getElementById('unemployment-chart').getContext('2d');
+            const reasons = [
+                'Waxbarashada oo aan tayo lahayn',
+                'Fursadaha shaqo oo xadidan',
+                'Dawladda oo aan abuurin shaqooyin',
+                'Caadooyin ama dhaqammo bulshada ka jira'
+            ];
+            
+            const reasonData = reasons.map(reason => {
+                return filteredData.filter(item => 
+                    item.unemployment_reasons && item.unemployment_reasons.includes(reason)
+                ).length;
+            });
+            
+            if (charts.unemployment) charts.unemployment.destroy();
+            
+            charts.unemployment = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: reasons.map(r => r.split(' ')[0]),
+                    datasets: [{
+                        data: reasonData,
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                        borderColor: '#4f46e5',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#4f46e5',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#4f46e5'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            ticks: {
+                                display: false
+                            },
+                            grid: {
+                                color: 'rgba(79, 70, 229, 0.1)'
+                            },
+                            angleLines: {
+                                color: 'rgba(79, 70, 229, 0.1)'
+                            },
+                            pointLabels: {
+                                color: '#e2e8f0',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render data table
+        function renderTable() {
+            const tableBody = document.getElementById('data-table-body');
+            tableBody.innerHTML = '';
+            
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, filteredData.length);
+            const pageData = filteredData.slice(startIndex, endIndex);
+            
+            pageData.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(item.timestamp).toLocaleDateString()}</td>
+                    <td>${item.gender || 'N/A'}</td>
+                    <td>${item.age || 'N/A'}</td>
+                    <td>${item.grade || 'N/A'}</td>
+                    <td>${item.neighborhood || 'N/A'}</td>
+                    <td>${item.considered_migration || 'N/A'}</td>
+                    <td>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="viewDetails('${item.id}')" class="text-indigo-400 hover:text-indigo-300" title="View details">
+                                <i data-feather="eye" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteResult('${item.id}')" class="text-red-400 hover:text-red-300" title="Delete result">
+                                <i data-feather="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            feather.replace();
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            const paginationContainer = document.getElementById('pagination');
+            paginationContainer.innerHTML = '';
+            
+            // Previous button
+            const prevButton = document.createElement('button');
+            prevButton.className = 'pagination-btn';
+            prevButton.innerHTML = '<i data-feather="chevron-left" class="w-4 h-4"></i>';
+            prevButton.disabled = currentPage === 1;
+            prevButton.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable();
+                }
+            };
+            paginationContainer.appendChild(prevButton);
+            
+            // Page buttons
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
+                pageButton.textContent = i;
+                pageButton.onclick = () => {
+                    currentPage = i;
+                    renderTable();
+                };
+                paginationContainer.appendChild(pageButton);
+            }
+            
+            // Next button
+            const nextButton = document.createElement('button');
+            nextButton.className = 'pagination-btn';
+            nextButton.innerHTML = '<i data-feather="chevron-right" class="w-4 h-4"></i>';
+            nextButton.disabled = currentPage === totalPages;
+            nextButton.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderTable();
+                }
+            };
+            paginationContainer.appendChild(nextButton);
+            
+            // Update table info
+            const startIndex = (currentPage - 1) * rowsPerPage + 1;
+            const endIndex = Math.min(currentPage * rowsPerPage, filteredData.length);
+            document.getElementById('table-info').textContent = 
+                `Showing ${startIndex} to ${endIndex} of ${filteredData.length} entries`;
+        }
+
+        // View response details
+        function viewDetails(id) {
+            const item = allData.find(d => d.id === id);
+            if (!item) return;
+            
+            const modalContent = document.getElementById('modal-content');
+            modalContent.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-indigo-400 font-semibold mb-2">Personal Information</h4>
+                        <p><span class="text-gray-400">Gender:</span> ${item.gender || 'N/A'}</p>
+                        <p><span class="text-gray-400">Age:</span> ${item.age || 'N/A'}</p>
+                        <p><span class="text-gray-400">Grade:</span> ${item.grade || 'N/A'}</p>
+                        <p><span class="text-gray-400">Neighborhood:</span> ${item.neighborhood || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-indigo-400 font-semibold mb-2">Future Plans</h4>
+                        <p><span class="text-gray-400">After School:</span> ${item.after_school || 'N/A'}</p>
+                        <p><span class="text-gray-400">Job Opportunities:</span> ${item.job_opportunities || 'N/A'}</p>
+                        <p><span class="text-gray-400">Limited Opportunities Reason:</span> ${item.limited_opportunities_reason || 'N/A'}</p>
+                        <p><span class="text-gray-400">Other Reason:</span> ${item.other_reason || 'N/A'}</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-indigo-400 font-semibold mb-2">Unemployment</h4>
+                        <p><span class="text-gray-400">Unemployment Reasons:</span> ${item.unemployment_reasons ? item.unemployment_reasons.join(', ') : 'N/A'}</p>
+                        <p><span class="text-gray-400">Other Unemployment Reason:</span> ${item.other_unemployment_reason || 'N/A'}</p>
+                        <p><span class="text-gray-400">Skills Training:</span> ${item.skills_training || 'N/A'}</p>
+                        <p><span class="text-gray-400">Interested in Training:</span> ${item.interested_training || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-indigo-400 font-semibold mb-2">Migration</h4>
+                        <p><span class="text-gray-400">Know Migrants:</span> ${item.know_migrants || 'N/A'}</p>
+                        <p><span class="text-gray-400">Migration Reason:</span> ${item.migration_reason || 'N/A'}</p>
+                        <p><span class="text-gray-400">Other Migration Reason:</span> ${item.other_migration_reason || 'N/A'}</p>
+                        <p><span class="text-gray-400">Considered Migration:</span> ${item.considered_migration || 'N/A'}</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-indigo-400 font-semibold mb-2">Migration Motivation</h4>
+                        <p><span class="text-gray-400">Migration Motivation:</span> ${item.migration_motivation || 'N/A'}</p>
+                        <p><span class="text-gray-400">Other Motivation:</span> ${item.other_motivation || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-indigo-400 font-semibold mb-2">Solutions</h4>
+                        <p><span class="text-gray-400">Solutions:</span> ${item.solutions ? item.solutions.join(', ') : 'N/A'}</p>
+                        <p><span class="text-gray-400">Other Solution:</span> ${item.other_solution || 'N/A'}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('detailModal').classList.remove('hidden');
+            document.getElementById('detailModal').classList.add('flex');
+            feather.replace();
+        }
+
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.add('hidden');
+            document.getElementById('detailModal').classList.remove('flex');
+        }
+
+        // Apply filters
+        function applyFilters() {
+            filteredData = allData.filter(item => {
+                if (currentFilters.gender !== 'all' && item.gender !== currentFilters.gender) return false;
+                
+                if (currentFilters.age !== 'all') {
+                    const age = parseInt(item.age);
+                    if (currentFilters.age === '15-17' && (!age || age < 15 || age > 17)) return false;
+                    if (currentFilters.age === '18-20' && (!age || age < 18 || age > 20)) return false;
+                    if (currentFilters.age === '21-23' && (!age || age < 21 || age > 23)) return false;
+                    if (currentFilters.age === '24+' && (!age || age < 24)) return false;
+                }
+                
+                if (currentFilters.grade !== 'all' && item.grade !== currentFilters.grade) return false;
+                if (currentFilters.migration !== 'all' && item.considered_migration !== currentFilters.migration) return false;
+                
+                return true;
+            });
+            
+            currentPage = 1;
+            renderCharts();
+            renderTable();
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            document.getElementById('gender-filter').addEventListener('change', (e) => {
+                currentFilters.gender = e.target.value;
+            });
+            
+            document.getElementById('age-filter').addEventListener('change', (e) => {
+                currentFilters.age = e.target.value;
+            });
+            
+            document.getElementById('grade-filter').addEventListener('change', (e) => {
+                currentFilters.grade = e.target.value;
+            });
+            
+            document.getElementById('migration-filter').addEventListener('change', (e) => {
+                currentFilters.migration = e.target.value;
+            });
+            
+            document.getElementById('apply-filters').addEventListener('click', applyFilters);
+            
+            document.getElementById('rows-per-page').addEventListener('change', (e) => {
+                rowsPerPage = parseInt(e.target.value);
+                currentPage = 1;
+                renderTable();
+            });
+            
+            document.getElementById('export-csv').addEventListener('click', exportCSV);
+            document.getElementById('export-json').addEventListener('click', exportJSON);
+        }
+
+        // Export functions
+        function exportCSV() {
+            const headers = [
+                'Timestamp', 'Gender', 'Age', 'Grade', 'Neighborhood', 'After School Plans',
+                'Job Opportunities Belief', 'Limited Opportunities Reason', 'Other Reason',
+                'Unemployment Reasons', 'Other Unemployment Reason', 'Skills Training',
+                'Interested in Training', 'Know Migrants', 'Migration Reason', 'Other Migration Reason',
+                'Considered Migration', 'Migration Motivation', 'Other Motivation', 'Solutions', 'Other Solution'
+            ];
+            
+            let csvContent = headers.join(',') + '\n';
+            
+            allData.forEach(item => {
+                const row = headers.map(header => {
+                    let value = '';
+                    switch(header) {
+                        case 'Timestamp':
+                            value = item.timestamp || '';
+                            break;
+                        case 'Unemployment Reasons':
+                            value = item.unemployment_reasons ? item.unemployment_reasons.join('; ') : '';
+                            break;
+                        case 'Solutions':
+                            value = item.solutions ? item.solutions.join('; ') : '';
+                            break;
+                        default:
+                            const key = header.toLowerCase().replace(/\s+/g, '_');
+                            value = item[key] || '';
+                    }
+                    return `"${value.toString().replace(/"/g, '""')}"`;
+                });
+                csvContent += row.join(',') + '\n';
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'sylead_youth_survey_data.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportJSON() {
+            const dataStr = JSON.stringify(allData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'sylead_youth_survey_data.json');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Delete a result by id
+        async function deleteResult(id) {
+            if (!id) return;
+            const confirmDelete = confirm('Are you sure you want to delete this result? This action cannot be undone.');
+            if (!confirmDelete) return;
+
+            try {
+                // Delete from Firestore
+                await db.collection('secondary_student_surveys').doc(id).delete();
+
+                // Remove from local arrays
+                allData = allData.filter(item => item.id !== id);
+                filteredData = filteredData.filter(item => item.id !== id);
+
+                // Update UI
+                updateMetrics();
+                renderCharts();
+                // Ensure currentPage is valid
+                const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
+                if (currentPage > totalPages) currentPage = totalPages;
+                renderTable();
+
+                alert('Result deleted successfully.');
+            } catch (error) {
+                console.error('Error deleting result:', error);
+                alert('Failed to delete result. Check console for details.');
+            }
+        }
+
+        // Initialize
+        fetchData();
+    </script>
+</body>
+</html>
